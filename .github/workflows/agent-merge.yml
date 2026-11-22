@@ -1,0 +1,46 @@
+# Pull requests merge themselves: ready for review + `ndk ci` green =
+# squash-merged. Drafts never merge. The `hold` label stops a merge.
+
+name: agent merge
+
+on:
+  workflow_run:
+    workflows: ["ndk ci"]
+    types: [completed]
+  pull_request:
+    types: [ready_for_review, unlabeled]
+  schedule:
+    - cron: "23 * * * *"
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: "One pull request number (empty = every open one)"
+        required: false
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+  checks: read
+
+concurrency:
+  group: agent-merge
+  cancel-in-progress: false
+
+jobs:
+  agent-merge:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          sparse-checkout: .github/scripts
+      - name: Merge what is ready and green
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          PR: ${{ github.event_name == 'pull_request' && github.event.pull_request.number || inputs.pr }}
+          REQUIRED_WORKFLOWS: "ndk ci"
+          POST_MERGE: ""
+        run: bash .github/scripts/agent-merge.sh

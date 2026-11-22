@@ -1,0 +1,13 @@
+Copyright (c) 2026 Blackfall Labs LLC. All rights reserved.
+
+The files in this repository are published so that they can be used, without
+modification, to run the Noderalis development kit (NDK) in your own
+continuous integration. No other right is granted: you may not copy, modify,
+redistribute or sublicense them except as needed for that use.
+
+nod release binaries published here are licensed separately, under the terms
+shown by `nod` itself.
+
+THE FILES ARE PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED. IN NO EVENT SHALL BLACKFALL LABS LLC BE LIABLE FOR ANY CLAIM, DAMAGES
+OR OTHER LIABILITY ARISING FROM THEIR USE.

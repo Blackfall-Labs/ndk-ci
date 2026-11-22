@@ -1,0 +1,80 @@
+# Install nod, the Noderalis development kit, from this repository's releases.
+#
+# Downloads the release for this runner, checks SHA256SUMS against the
+# Blackfall release key below, checks the archive against SHA256SUMS, and only
+# then puts nod on PATH. Nothing is run that has not been verified.
+name: setup-nod
+description: Install a verified nod (the Noderalis development kit).
+branding:
+  icon: package
+  color: gray-dark
+
+inputs:
+  version:
+    description: The nod release to install, such as 0.2.0. "latest" takes the newest release.
+    required: false
+    default: latest
+  toolchain:
+    description: Rust toolchain for building modules, with the wasm32 target.
+    required: false
+    default: stable
+
+outputs:
+  version:
+    description: The nod version installed.
+    value: ${{ steps.get.outputs.version }}
+
+runs:
+  using: composite
+  steps:
+    - name: Toolchain
+      shell: bash
+      env:
+        TC: ${{ inputs.toolchain }}
+      run: |
+        rustup toolchain install "$TC" --profile minimal --target wasm32-unknown-unknown
+        rustup default "$TC"
+
+    - name: Download and verify nod
+      id: get
+      shell: bash
+      env:
+        GH_TOKEN: ${{ github.token }}
+        VERSION: ${{ inputs.version }}
+        ACTION_REPO: ${{ github.action_repository || 'Blackfall-Labs/noderalis-ndk' }}
+        # The Blackfall release public key (Ed25519, SPKI PEM body). Empty
+        # until the first release is published.
+        RELEASE_PUBKEY: ""
+      run: |
+        set -euo pipefail
+        if [ -z "$RELEASE_PUBKEY" ]; then
+          echo "::error::No nod release has been published yet."
+          exit 1
+        fi
+        case "$RUNNER_OS-$RUNNER_ARCH" in
+          Linux-X64)   target=x86_64-unknown-linux-gnu ;;
+          Linux-ARM64) target=aarch64-unknown-linux-gnu ;;
+          *) echo "::error::nod releases are published for Linux runners first; $RUNNER_OS $RUNNER_ARCH is not supported yet."; exit 1 ;;
+        esac
+        tag="$VERSION"
+        if [ "$tag" = latest ]; then
+          tag=$(gh release view --repo "$ACTION_REPO" --json tagName -q .tagName)
+        fi
+        version="${tag#v}"
+        dir="$RUNNER_TEMP/nod-$version"
+        mkdir -p "$dir"
+        cd "$dir"
+        gh release download "$tag" --repo "$ACTION_REPO" --clobber \
+          -p "nod-$version-$target.tar.gz" -p SHA256SUMS -p SHA256SUMS.sig
+        printf -- '-----BEGIN PUBLIC KEY-----\n%s\n-----END PUBLIC KEY-----\n' "$RELEASE_PUBKEY" > release.pub
+        base64 -d SHA256SUMS.sig > SHA256SUMS.sig.bin
+        openssl pkeyutl -verify -pubin -inkey release.pub -rawin \
+          -in SHA256SUMS -sigfile SHA256SUMS.sig.bin
+        grep " nod-$version-$target.tar.gz\$" SHA256SUMS | sha256sum -c -
+        tar -xzf "nod-$version-$target.tar.gz"
+        echo "$dir" >> "$GITHUB_PATH"
+        echo "version=$version" >> "$GITHUB_OUTPUT"
+
+    - name: nod version
+      shell: bash
+      run: nod --version

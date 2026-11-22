@@ -1,0 +1,109 @@
+# The NDK as a reusable workflow: a module repository's whole CI.
+#
+#   jobs:
+#     ndk:
+#       uses: Blackfall-Labs/noderalis-ndk/.github/workflows/ndk.yml@v1
+#       secrets: inherit
+#
+# No pipeline logic lives here. It installs a verified nod and runs `nod ci`,
+# the same command a developer runs, so CI and local cannot drift.
+
+name: ndk
+
+on:
+  workflow_call:
+    inputs:
+      module-dir:
+        description: The module's directory within the repository.
+        type: string
+        default: "."
+      nod-version:
+        description: The nod release to run, such as 0.2.0, or "latest".
+        type: string
+        default: latest
+      until:
+        description: The last stage to run (spec, doctor, build, conform, sign, install, boot, package). Empty runs all.
+        type: string
+        default: ""
+      toolchain:
+        description: Rust toolchain for the module.
+        type: string
+        default: stable
+      artifact-name:
+        description: Name of the uploaded report and package.
+        type: string
+        default: ndk
+    secrets:
+      NOD_LICENSE_KEY:
+        required: false
+      NOD_SIGNING_KEY:
+        required: false
+    outputs:
+      passed:
+        description: Whether every stage that ran passed.
+        value: ${{ jobs.ndk.outputs.passed }}
+      public-key:
+        description: The public half of the key the module was signed with.
+        value: ${{ jobs.ndk.outputs.public-key }}
+
+permissions:
+  contents: read
+
+jobs:
+  ndk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    outputs:
+      passed: ${{ steps.ci.outputs.passed }}
+      public-key: ${{ steps.ci.outputs.public-key }}
+    env:
+      CARGO_TERM_COLOR: always
+      CARGO_INCREMENTAL: "0"
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up nod
+        uses: Blackfall-Labs/noderalis-ndk@v1
+        with:
+          version: ${{ inputs.nod-version }}
+          toolchain: ${{ inputs.toolchain }}
+
+      - name: wasm target for the module's toolchain
+        working-directory: ${{ inputs.module-dir }}
+        run: rustup target add wasm32-unknown-unknown
+
+      # The module's registry downloads and target dir, keyed by its lockfile.
+      # target/ndk (the run's throwaway node and report) is never cached.
+      - name: Cache the module build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/registry/index
+            ~/.cargo/registry/cache
+            ~/.cargo/git/db
+            ${{ inputs.module-dir }}/target
+            !${{ inputs.module-dir }}/target/ndk
+          key: ndk-module-${{ runner.os }}-${{ inputs.toolchain }}-${{ hashFiles(format('{0}/**/Cargo.lock', inputs.module-dir)) }}
+          restore-keys: |
+            ndk-module-${{ runner.os }}-${{ inputs.toolchain }}-
+
+      - name: nod ci
+        id: ci
+        working-directory: ${{ inputs.module-dir }}
+        env:
+          NOD_LICENSE_KEY: ${{ secrets.NOD_LICENSE_KEY }}
+          NOD_SIGNING_KEY: ${{ secrets.NOD_SIGNING_KEY }}
+          UNTIL: ${{ inputs.until }}
+        run: |
+          if [ -n "$UNTIL" ]; then nod ci --until "$UNTIL"; else nod ci; fi
+
+      - name: Upload the report and package
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: ${{ inputs.artifact-name }}
+          path: |
+            ${{ inputs.module-dir }}/target/ndk/ndk.json
+            ${{ inputs.module-dir }}/target/ndk/ndk.md
+            ${{ inputs.module-dir }}/target/ndk/*.eng
+          if-no-files-found: ignore
