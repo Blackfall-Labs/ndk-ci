@@ -63,6 +63,7 @@ x86_64 and arm64.
 
 ## Status
 
+The Blackfall release key is in [`release/blackfall-release.pub`](release/blackfall-release.pub).
 The first nod release has not been published yet. Until it is, the action
 stops with a message saying so.
 
