@@ -38,7 +38,9 @@ jobs:
 
       - name: The binary check catches a build path
         run: |
-          printf 'x\0panicked at /home/builder/work/src/main.rs\0' > "$RUNNER_TEMP/planted"
+          # The path is put together here so this file itself stays clean.
+          root=/home
+          printf 'x\0panicked at %s/builder/work/src/main.rs\0' "$root" > "$RUNNER_TEMP/planted"
           printf 'x\0nothing to see in this binary\0' > "$RUNNER_TEMP/clean"
           python3 tools/leak-check.py --files "$RUNNER_TEMP/clean"
           if python3 tools/leak-check.py --files "$RUNNER_TEMP/planted"; then
