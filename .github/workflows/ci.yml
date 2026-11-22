@@ -40,7 +40,7 @@ jobs:
         run: |
           # The paths are put together here so this file itself stays clean. A binary holds a
           # Windows path with single backslashes.
-          b='\'
+          b="$(printf '\134')"
           printf 'x\0at /%s/builder/work/src/main.rs\0' home > "$RUNNER_TEMP/planted-home"
           printf 'x\0at /%s/.cargo/x/y.rs\0' root > "$RUNNER_TEMP/planted-root"
           printf 'x\0at C:%sUsers%sbuilder%swork\0' "$b" "$b" "$b" > "$RUNNER_TEMP/planted-windows"
