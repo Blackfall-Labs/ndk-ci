@@ -41,7 +41,7 @@ CHECKSUM = re.compile(r"sha-?256", re.I)
 # This repository's own name is public by definition; it is taken out before
 # the guarded terms are checked, so a term it happens to contain still counts
 # everywhere else.
-PUBLIC_NAMES = ("blackfall-labs/noderalis-ndk",)
+PUBLIC_NAMES = ("blackfall-labs/ndk-ci",)
 
 
 def normalize(text: str) -> str:

@@ -2,7 +2,7 @@
 #
 #   jobs:
 #     ndk:
-#       uses: Blackfall-Labs/noderalis-ndk/.github/workflows/ndk.yml@v1
+#       uses: Blackfall-Labs/ndk-ci/.github/workflows/ndk.yml@v1
 #       secrets: inherit
 #
 # No pipeline logic lives here. It installs a verified nod and runs `nod ci`,
@@ -63,7 +63,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Set up nod
-        uses: Blackfall-Labs/noderalis-ndk@v1
+        uses: Blackfall-Labs/ndk-ci@v1
         with:
           version: ${{ inputs.nod-version }}
           toolchain: ${{ inputs.toolchain }}

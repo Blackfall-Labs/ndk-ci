@@ -11,7 +11,7 @@ same command you run on your own machine, so CI and local never drift.
 on: [push, pull_request]
 jobs:
   ndk:
-    uses: Blackfall-Labs/noderalis-ndk/.github/workflows/ndk.yml@v1
+    uses: Blackfall-Labs/ndk-ci/.github/workflows/ndk.yml@v1
     secrets: inherit
 ```
 
@@ -48,7 +48,7 @@ forks receive no secrets, so they always run this way.
 ```yaml
 steps:
   - uses: actions/checkout@v4
-  - uses: Blackfall-Labs/noderalis-ndk@v1
+  - uses: Blackfall-Labs/ndk-ci@v1
   - run: nod ci
 ```
 

@@ -41,7 +41,7 @@ runs:
       env:
         GH_TOKEN: ${{ github.token }}
         VERSION: ${{ inputs.version }}
-        ACTION_REPO: ${{ github.action_repository || 'Blackfall-Labs/noderalis-ndk' }}
+        ACTION_REPO: ${{ github.action_repository || 'Blackfall-Labs/ndk-ci' }}
         # The Blackfall release public key (Ed25519, SPKI PEM body). Empty
         # until the first release is published.
         RELEASE_PUBKEY: ""
