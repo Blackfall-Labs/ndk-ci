@@ -12,6 +12,11 @@ Two layers, both run on every pull request and push:
    more are listed, so a hash cannot be reversed by brute force.
 
 Exits 1 and names the file and line of each hit, never the matched text.
+
+`leak-check.py --files PATH...` checks other files the same way, such as a
+release binary before it is published: every run of 8 or more printable bytes
+counts as a line, and the bare-hex rule is skipped, since binaries carry
+public constants.
 """
 import hashlib
 import json
@@ -58,6 +63,25 @@ def tracked_files():
     return [ROOT / p for p in out.split("\0") if p]
 
 
+PRINTABLE = re.compile(rb"[\x20-\x7e]{8,}")
+
+
+def check_lines(rel, lines, by_len, hits, binary=False):
+    for n, line in enumerate(lines, 1):
+        for what, rx in PATTERNS.items():
+            if what.startswith("a bare") and (binary or CHECKSUM.search(line)):
+                continue
+            if rx.search(line):
+                hits.append(f"{rel}:{n}: {what}")
+        norm = normalize(line)
+        for length, digests in by_len.items():
+            for i in range(0, max(0, len(norm) - length + 1)):
+                window = norm[i : i + length]
+                if hashlib.sha256(window.encode()).hexdigest() in digests:
+                    hits.append(f"{rel}:{n}: a term that must not be public")
+                    break
+
+
 def main() -> int:
     guarded = json.loads(HASHES.read_text())
     by_len = {}
@@ -65,27 +89,21 @@ def main() -> int:
         by_len.setdefault(entry["len"], set()).add(entry["sha256"])
 
     hits = []
-    for path in tracked_files():
-        rel = path.relative_to(ROOT)
-        if rel == pathlib.Path("tools/leak-hashes.json"):
-            continue
-        try:
-            text = path.read_text(encoding="utf-8")
-        except (UnicodeDecodeError, FileNotFoundError):
-            continue
-        for n, line in enumerate(text.splitlines(), 1):
-            for what, rx in PATTERNS.items():
-                if what.startswith("a bare") and CHECKSUM.search(line):
-                    continue
-                if rx.search(line):
-                    hits.append(f"{rel}:{n}: {what}")
-            norm = normalize(line)
-            for length, digests in by_len.items():
-                for i in range(0, max(0, len(norm) - length + 1)):
-                    window = norm[i : i + length]
-                    if hashlib.sha256(window.encode()).hexdigest() in digests:
-                        hits.append(f"{rel}:{n}: a term that must not be public")
-                        break
+    if sys.argv[1:2] == ["--files"]:
+        for name in sys.argv[2:]:
+            data = pathlib.Path(name).read_bytes()
+            runs = [m.group().decode("ascii") for m in PRINTABLE.finditer(data)]
+            check_lines(pathlib.Path(name).name, runs, by_len, hits, binary=True)
+    else:
+        for path in tracked_files():
+            rel = path.relative_to(ROOT)
+            if rel == pathlib.Path("tools/leak-hashes.json"):
+                continue
+            try:
+                text = path.read_text(encoding="utf-8")
+            except (UnicodeDecodeError, FileNotFoundError):
+                continue
+            check_lines(rel, text.splitlines(), by_len, hits)
     for h in sorted(set(hits)):
         print(f"::error::{h}")
     if hits:

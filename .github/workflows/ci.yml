@@ -36,6 +36,15 @@ jobs:
       - name: Private names, paths and links
         run: python3 tools/leak-check.py
 
+      - name: The binary check catches a build path
+        run: |
+          printf 'x\0panicked at /home/builder/work/src/main.rs\0' > "$RUNNER_TEMP/planted"
+          printf 'x\0nothing to see in this binary\0' > "$RUNNER_TEMP/clean"
+          python3 tools/leak-check.py --files "$RUNNER_TEMP/clean"
+          if python3 tools/leak-check.py --files "$RUNNER_TEMP/planted"; then
+            echo "::error::leak-check --files passed a binary with a build path in it"; exit 1
+          fi
+
   workflows:
     name: workflow syntax
     runs-on: ubuntu-latest
