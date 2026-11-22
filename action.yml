@@ -1,8 +1,10 @@
 # Install nod, the Noderalis development kit, from this repository's releases.
 #
-# Downloads the release for this runner, checks SHA256SUMS against the
-# Blackfall release key below, checks the archive against SHA256SUMS, and only
-# then puts nod on PATH. Nothing is run that has not been verified.
+# Downloads the release for this runner (tag nod-v<version>), checks
+# SHA256SUMS.sig against the Blackfall release key in release/, checks the
+# archive against SHA256SUMS with release/verify.sh, and only then puts nod on
+# PATH. Nothing runs that has not been verified, and Blackfall's own
+# repositories install nod exactly this way.
 name: setup-nod
 description: Install a verified nod (the Noderalis development kit).
 branding:
@@ -11,7 +13,7 @@ branding:
 
 inputs:
   version:
-    description: The nod release to install, such as 0.2.0. "latest" takes the newest release.
+    description: The nod release to install, such as 0.2.0. "latest" takes the newest nod release.
     required: false
     default: latest
   toolchain:
@@ -42,37 +44,40 @@ runs:
         GH_TOKEN: ${{ github.token }}
         VERSION: ${{ inputs.version }}
         ACTION_REPO: ${{ github.action_repository || 'Blackfall-Labs/ndk-ci' }}
-        # The Blackfall release public key (Ed25519, SPKI PEM body). Empty
-        # until the first release is published.
-        RELEASE_PUBKEY: ""
+        ACTION_PATH: ${{ github.action_path }}
       run: |
         set -euo pipefail
-        if [ -z "$RELEASE_PUBKEY" ]; then
-          echo "::error::No nod release has been published yet."
+        pub="$ACTION_PATH/release/blackfall-release.pub"
+        if [ ! -s "$pub" ]; then
+          echo "::error::No nod release has been published yet: the Blackfall release key is not in this repository."
           exit 1
         fi
         case "$RUNNER_OS-$RUNNER_ARCH" in
-          Linux-X64)   target=x86_64-unknown-linux-gnu ;;
-          Linux-ARM64) target=aarch64-unknown-linux-gnu ;;
-          *) echo "::error::nod releases are published for Linux runners first; $RUNNER_OS $RUNNER_ARCH is not supported yet."; exit 1 ;;
+          Linux-X64)     target=x86_64-unknown-linux-gnu;  ext=tar.gz ;;
+          Linux-ARM64)   target=aarch64-unknown-linux-gnu; ext=tar.gz ;;
+          macOS-X64)     target=x86_64-apple-darwin;       ext=tar.gz ;;
+          macOS-ARM64)   target=aarch64-apple-darwin;      ext=tar.gz ;;
+          Windows-X64)   target=x86_64-pc-windows-msvc;    ext=zip ;;
+          Windows-ARM64) target=aarch64-pc-windows-msvc;   ext=zip ;;
+          *) echo "::error::No nod release is built for $RUNNER_OS $RUNNER_ARCH."; exit 1 ;;
         esac
-        tag="$VERSION"
-        if [ "$tag" = latest ]; then
-          tag=$(gh release view --repo "$ACTION_REPO" --json tagName -q .tagName)
+        if [ "$VERSION" = latest ]; then
+          tag=$(gh release list --repo "$ACTION_REPO" --limit 100 --json tagName -q '.[].tagName' \
+                | grep -E '^nod-v[0-9]' | head -n1 || true)
+          [ -n "$tag" ] || { echo "::error::No nod release has been published yet."; exit 1; }
+        else
+          tag="nod-v${VERSION#v}"
         fi
-        version="${tag#v}"
+        version="${tag#nod-v}"
+        asset="nod-$version-$target.$ext"
         dir="$RUNNER_TEMP/nod-$version"
         mkdir -p "$dir"
+        gh release download "$tag" --repo "$ACTION_REPO" --dir "$dir" --clobber \
+          -p "$asset" -p SHA256SUMS -p SHA256SUMS.sig
+        bash "$ACTION_PATH/release/verify.sh" "$dir" --pubkey "$pub" "$asset"
         cd "$dir"
-        gh release download "$tag" --repo "$ACTION_REPO" --clobber \
-          -p "nod-$version-$target.tar.gz" -p SHA256SUMS -p SHA256SUMS.sig
-        printf -- '-----BEGIN PUBLIC KEY-----\n%s\n-----END PUBLIC KEY-----\n' "$RELEASE_PUBKEY" > release.pub
-        base64 -d SHA256SUMS.sig > SHA256SUMS.sig.bin
-        openssl pkeyutl -verify -pubin -inkey release.pub -rawin \
-          -in SHA256SUMS -sigfile SHA256SUMS.sig.bin
-        grep " nod-$version-$target.tar.gz\$" SHA256SUMS | sha256sum -c -
-        tar -xzf "nod-$version-$target.tar.gz"
-        echo "$dir" >> "$GITHUB_PATH"
+        if [ "$ext" = zip ]; then unzip -q -o "$asset"; else tar -xzf "$asset"; fi
+        echo "$dir/nod-$version-$target" >> "$GITHUB_PATH"
         echo "version=$version" >> "$GITHUB_OUTPUT"
 
     - name: nod version

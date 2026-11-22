@@ -52,8 +52,14 @@ steps:
   - run: nod ci
 ```
 
-The action downloads nod from this repository's releases and checks its
-signature against the Blackfall release key before running it.
+The action downloads nod from this repository's releases and checks it before
+running it: `SHA256SUMS.sig` must verify against the Blackfall release key in
+[`release/`](release), and the archive must match `SHA256SUMS`. You can check a
+download the same way with `release/verify.sh`; it needs only `ssh-keygen` and
+`sha256sum` or `shasum`.
+
+Releases are tagged `nod-v<version>` and built for Linux, macOS and Windows on
+x86_64 and arm64.
 
 ## Status
 
