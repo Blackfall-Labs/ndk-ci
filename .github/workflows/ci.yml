@@ -38,14 +38,20 @@ jobs:
 
       - name: The binary check catches a build path
         run: |
-          # The path is put together here so this file itself stays clean.
-          root=/home
-          printf 'x\0panicked at %s/builder/work/src/main.rs\0' "$root" > "$RUNNER_TEMP/planted"
-          printf 'x\0nothing to see in this binary\0' > "$RUNNER_TEMP/clean"
+          # The paths are put together here so this file itself stays clean. A binary holds a
+          # Windows path with single backslashes.
+          b="$(printf '\134')"
+          printf 'x\0at /%s/builder/work/src/main.rs\0' home > "$RUNNER_TEMP/planted-home"
+          printf 'x\0at /%s/.cargo/x/y.rs\0' root > "$RUNNER_TEMP/planted-root"
+          printf 'x\0at C:%sUsers%sbuilder%swork\0' "$b" "$b" "$b" > "$RUNNER_TEMP/planted-windows"
+          printf 'x\0at /opt/ci/.cargo/%s/src/index-0/a-1.0.0/src/lib.rs\0' registry > "$RUNNER_TEMP/planted-registry"
+          printf 'x\0at /cargo/registry/src/a-1.0.0/src/lib.rs and /build/src/main.rs\0' > "$RUNNER_TEMP/clean"
           python3 tools/leak-check.py --files "$RUNNER_TEMP/clean"
-          if python3 tools/leak-check.py --files "$RUNNER_TEMP/planted"; then
-            echo "::error::leak-check --files passed a binary with a build path in it"; exit 1
-          fi
+          for f in "$RUNNER_TEMP"/planted-*; do
+            if python3 tools/leak-check.py --files "$f"; then
+              echo "::error::leak-check --files passed $(basename "$f")"; exit 1
+            fi
+          done
 
   workflows:
     name: workflow syntax

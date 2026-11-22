@@ -30,7 +30,10 @@ HASHES = ROOT / "tools" / "leak-hashes.json"
 
 PATTERNS = {
     "an absolute home or workspace path": re.compile(
-        r"(/home/[a-z_][\w.-]*/|/Users/[\w.-]+/|[A-Za-z]:\\\\(?:Users|repos)\\\\)",
+        # A Windows path is escaped (\\) in text files and plain (\) in binaries.
+        r"(/home/[a-z_][\w.-]*/|/(?:root)/|/Users/[\w.-]+/"
+        r"|[A-Za-z]:(?:\\\\|\\|/)(?:Users|repos)(?:\\\\|\\|/)"
+        r"|[\\/]\.cargo[\\/]registry[\\/]src[\\/])",
         re.I,
     ),
     "a private document link": re.compile(r"(notion\.so/|app\.notion\.com/)", re.I),
